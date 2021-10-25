@@ -1,0 +1,68 @@
+# This file is the entry point to configure your own services.
+# Files in the packages/ subdirectory configure your dependencies.
+
+# Put parameters here that don't need to change on each machine where the app is deployed
+# https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
+parameters:
+
+services:
+  # default configuration for services in *this* file
+  _defaults:
+    autowire: true      # Automatically injects dependencies in your services.
+    autoconfigure: true # Automatically registers your services as commands, event subscribers, etc.
+
+  # makes classes in src/ available to be used as services
+  # this creates a service per class whose id is the fully-qualified class name
+  App\:
+    resource: '../src/'
+    exclude:
+      - '../src/DependencyInjection/'
+      - '../src/Entity/'
+      - '../src/Kernel.php'
+      - '../src/Tests/'
+
+  Symfony\Component\Serializer\Normalizer\ObjectNormalizer:
+    tags: [serializer.normalizer]
+
+  App\Weather\Provider\BBC\BbcProvider:
+    arguments:
+      $client: '@App\Weather\Provider\BBC\BbcClient'
+
+  App\Weather\Provider\IAmsterdam\IAmsterdamProvider:
+    arguments:
+      $client: '@App\Weather\Provider\IAmsterdam\IAmsterdamClient'
+
+  App\Weather\Provider\WeatherCom\WeatherComProvider:
+    arguments:
+      $client: '@App\Weather\Provider\WeatherCom\WeatherComClient'
+
+  App\Weather\ScaleConvertor:
+
+  App\Weather\Forecaster\WeatherForecaster:
+    class: App\Weather\Forecaster\MeanForecast
+    arguments:
+      $providers: [ '@App\Weather\Provider\BBC\BbcProvider', '@App\Weather\Provider\IAmsterdam\IAmsterdamProvider', '@App\Weather\Provider\WeatherCom\WeatherComProvider' ]
+      $logger: ~
+    public: true
+
+  App\Api\Presenter:
+    arguments:
+      $serializer: '@serializer'
+      $format: 'json'
+
+  App\Api\ThrowableListener:
+    arguments:
+      $presenter: '@App\Api\Presenter'
+    tags:
+      - { name: kernel.event_listener, event: kernel.exception }
+
+  App\Api\Weather\Controller\ArgumentResolver\PredictWeatherArgumentResolver:
+    arguments:
+      $serializer: '@serializer'
+    tags:
+      - { name: controller.argument_value_resolver.weather, priority: 50 }
+
+  App\Api\Weather\Controller\PredictionsController:
+    tags: [controller.service_arguments]
+    bind:
+      $presenter: '@App\Api\Presenter'
